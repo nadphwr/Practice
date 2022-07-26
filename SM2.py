@@ -12,7 +12,6 @@ import math
 import numpy as np
 from _sm3 import sm3
  
-# 小素数列表，加快判断素数速度
 small_primes = np.array([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41,
                          43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109,
                          113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191,
@@ -111,7 +110,6 @@ def join_bytes(data_list):
     return b''.join([to_byte(i) for i in data_list])
  
  
-# 求最大公约数
 def gcd(a, b):
     return a if b == 0 else gcd(b, a % b)
  
@@ -126,14 +124,17 @@ def get_(a, b):
  
  
 # 求乘法逆元
-def get_inverse(a, p):
-    return pow(a, p-2, p) 
- 
+def get_inverse(a, p): 
+    if gcd(a, p) == 1:
+        x, y = get_(a, p)
+        return x % p
+    return 1
+
  
 def get_cpu_time():
     return time.perf_counter()
  
- 
+    
 # 密钥派生函数（从一个共享的秘密比特串中派生出密钥数据）
 # SM2第3部分 5.4.3
 # Z为bytes类型
@@ -147,7 +148,7 @@ def KDF(Z, klen):
     return K[:ksize]
  
  
-# 计算比特位数
+#比特位数
 def get_bit_num(x):
     if isinstance(x, int):
         num = 0
@@ -170,7 +171,7 @@ def get_bit_num(x):
         return len(x) << 3
     return 0
  
- 
+'''引用代码'''
 # 椭圆曲线密码类（实现一般的EC运算，不局限于SM2）
 class ECC:
     def __init__(self, p, a, b, n, G, h=None):
@@ -505,13 +506,14 @@ SM2_b = 0x28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93
 SM2_n = 0xFFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123
 SM2_Gx = 0x32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7
 SM2_Gy = 0xBC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0
- 
+SM2_G=(SM2_Gx,SM2_Gy)
+h=1
 PARA_SIZE = 32  # 参数长度（字节）
 HASH_SIZE = 32  # sm3输出256位（32字节）
 KEY_LEN = 128  # 默认密钥位数
  
-# SM2示例中的椭圆曲线系统参数
-def demo_para():
+# # SM2示例中的椭圆曲线系统参数
+def tmp_para():
     p = 0x8542D69E4C044F18E8B92435BF6FF7DE457283915C45517D722EDB8B08F1DFC3
     a = 0x787968B4FA32C3FD2417842E73BBFEFF2F3C848B6831D7E0EC65228B3937E498
     b = 0x63E4C6D3B23B0C849CF84241484BFE48F61D59A5B16BA06E6E12D1DA27C5249A
@@ -786,21 +788,21 @@ class SM2(ECC):
         y1 = to_int(C[self.keysize:self.keysize << 1])
         C1 = (x1, y1)
         if not self.on_curve(C1):
-            return False, 'C1不满足椭圆曲线方程'
+            return False
         if self.is_zero(self.multiply(self.h, C1)):  # S
-            return False, 'S是无穷远点'
+            return False
         # x2, y2 = self.multiply(self.sk, C1)
         x2, y2 = self.Jacb_multiply(self.sk, C1)
         klen = len(C) - (self.keysize << 1) - HASH_SIZE << 3
         t = to_int(KDF(join_bytes([x2, y2]), klen))
         if t == 0:
-            return False, 't为全0比特串'
+            return False
         C2 = C[self.keysize << 1:-HASH_SIZE]
         M = to_byte(to_int(C2) ^ t, klen >> 3)
         u = sm3(str(to_int(join_bytes([x2, M, y2]))))
         C3 = C[-HASH_SIZE:]
         if u != C3:
-            return False, 'u != C3'
+            return False
         return True, M
  
  
@@ -816,14 +818,14 @@ def test_encryption():
     k = 0x4C62EEFD6ECFC2B95B92FD6C3D9575148AFA17425546D49018E5388D49DD7B4F
  
     # A、B双方初始化
-    sm2_A = SM2(*demo_para())
-    sm2_B = SM2(*demo_para(), '', dB, PB)
+    sm2_A = SM2(*tmp_para())
+    sm2_B = SM2(*tmp_para(), '', dB, PB)
  
     time_1 = get_cpu_time()
     # A用B的公钥对消息M进行加密
     res, C = sm2_A.encrypt(M, PB, k)
     if not res:
-        print('A报告加密错误：', C)
+        print('错误：', C)
         return
  
     # A将密文C发送给B
@@ -831,10 +833,10 @@ def test_encryption():
     # B用自己的私钥对密文C进行解密
     res, M2 = sm2_B.decrypt(C)
     if not res:
-        print('B报告解密错误：', M2)
+        print('错误：', M2)
         return
     time_2 = get_cpu_time()
-    print('SM2加解密完毕，耗时%.2f ms' % ((time_2 - time_1) * 1000))
+    print('耗时%.2f ms' % ((time_2 - time_1) * 1000))
     print('结果：%s，解密得：%s(%s)' % (res, M2.hex(), M2.decode()))
     # 加解密成功，解密后的16进制值(656e6372797074696f6e207374616e64617264)与SM2第4部分 A.2中的结果一致
  
