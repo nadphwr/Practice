@@ -1,0 +1,654 @@
+from __future__ import annotations
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jul 26 19:28:48 2022
+
+@author: nadph
+"""
+
+'''bitcoin'''
+
+
+from dataclasses import dataclass
+import random
+from hashlib import sha256
+import hmac
+
+def SHA256(key,data):
+    data = data.encode('utf-8')
+    # print(hmac.new(key.encode('utf-8'), data, digestmod=sha256).hexdigest().upper())
+    result=hmac.new(key.encode('utf-8'), data, digestmod=sha256).hexdigest().upper()
+    return result
+
+#参考代码repimd160哈希函数
+def gen_ripemd160_with_variable_scope_protector_to_not_pollute_global_namespace():
+
+    import sys
+    import struct
+
+    # -----------------------------------------------------------------------------
+    # public interface
+
+    def ripemd160(b: bytes) -> bytes:
+        """ simple wrapper for a simpler API to this hash function, just bytes to bytes """
+        ctx = RMDContext()
+        RMD160Update(ctx, b, len(b))
+        digest = RMD160Final(ctx)
+        return digest
+
+    # -----------------------------------------------------------------------------
+
+    class RMDContext:
+        def __init__(self):
+            self.state = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0] # uint32
+            self.count = 0 # uint64
+            self.buffer = [0]*64 # uchar
+
+    def RMD160Update(ctx, inp, inplen):
+        have = int((ctx.count // 8) % 64)
+        inplen = int(inplen)
+        need = 64 - have
+        ctx.count += 8 * inplen
+        off = 0
+        if inplen >= need:
+            if have:
+                for i in range(need):
+                    ctx.buffer[have+i] = inp[i]
+                RMD160Transform(ctx.state, ctx.buffer)
+                off = need
+                have = 0
+            while off + 64 <= inplen:
+                RMD160Transform(ctx.state, inp[off:])
+                off += 64
+        if off < inplen:
+            for i in range(inplen - off):
+                ctx.buffer[have+i] = inp[off+i]
+
+    def RMD160Final(ctx):
+        size = struct.pack("<Q", ctx.count)
+        padlen = 64 - ((ctx.count // 8) % 64)
+        if padlen < 1 + 8:
+            padlen += 64
+        RMD160Update(ctx, padding, padlen-8)
+        RMD160Update(ctx, size, 8)
+        return struct.pack("<5L", *ctx.state)
+
+    # -----------------------------------------------------------------------------
+
+    K0 = 0x00000000
+    K1 = 0x5A827999
+    K2 = 0x6ED9EBA1
+    K3 = 0x8F1BBCDC
+    K4 = 0xA953FD4E
+    KK0 = 0x50A28BE6
+    KK1 = 0x5C4DD124
+    KK2 = 0x6D703EF3
+    KK3 = 0x7A6D76E9
+    KK4 = 0x00000000
+
+    padding = [0x80] + [0]*63
+
+    def Rol(n, x):
+        return ((x << n) & 0xffffffff) | (x >> (32 - n))
+
+    def F0(x, y, z):
+        return x ^ y ^ z
+
+    def F1(x, y, z):
+        return (x & y) | (((~x) % 0x100000000) & z)
+
+    def F2(x, y, z):
+        return (x | ((~y) % 0x100000000)) ^ z
+
+    def F3(x, y, z):
+        return (x & z) | (((~z) % 0x100000000) & y)
+
+    def F4(x, y, z):
+        return x ^ (y | ((~z) % 0x100000000))
+
+    def R(a, b, c, d, e, Fj, Kj, sj, rj, X):
+        a = Rol(sj, (a + Fj(b, c, d) + X[rj] + Kj) % 0x100000000) + e
+        c = Rol(10, c)
+        return a % 0x100000000, c
+
+    def RMD160Transform(state, block): #uint32 state[5], uchar block[64]
+
+        x = [0]*16
+        assert sys.byteorder == 'little', "Only little endian is supported atm for RIPEMD160"
+        #print("bytes:",bytes(''.join('%s' %id for id in block[0:64]).encode()))
+        x = struct.unpack('<16L', bytes(''.join('%s' %id for id in block[0:64]).encode())[0:64])
+
+        a = state[0]
+        b = state[1]
+        c = state[2]
+        d = state[3]
+        e = state[4]
+
+        #/* Round 1 */
+        a, c = R(a, b, c, d, e, F0, K0, 11,  0, x)
+        e, b = R(e, a, b, c, d, F0, K0, 14,  1, x)
+        d, a = R(d, e, a, b, c, F0, K0, 15,  2, x)
+        c, e = R(c, d, e, a, b, F0, K0, 12,  3, x)
+        b, d = R(b, c, d, e, a, F0, K0,  5,  4, x)
+        a, c = R(a, b, c, d, e, F0, K0,  8,  5, x)
+        e, b = R(e, a, b, c, d, F0, K0,  7,  6, x)
+        d, a = R(d, e, a, b, c, F0, K0,  9,  7, x)
+        c, e = R(c, d, e, a, b, F0, K0, 11,  8, x)
+        b, d = R(b, c, d, e, a, F0, K0, 13,  9, x)
+        a, c = R(a, b, c, d, e, F0, K0, 14, 10, x)
+        e, b = R(e, a, b, c, d, F0, K0, 15, 11, x)
+        d, a = R(d, e, a, b, c, F0, K0,  6, 12, x)
+        c, e = R(c, d, e, a, b, F0, K0,  7, 13, x)
+        b, d = R(b, c, d, e, a, F0, K0,  9, 14, x)
+        a, c = R(a, b, c, d, e, F0, K0,  8, 15, x) #/* #15 */
+        #/* Round 2 */
+        e, b = R(e, a, b, c, d, F1, K1,  7,  7, x)
+        d, a = R(d, e, a, b, c, F1, K1,  6,  4, x)
+        c, e = R(c, d, e, a, b, F1, K1,  8, 13, x)
+        b, d = R(b, c, d, e, a, F1, K1, 13,  1, x)
+        a, c = R(a, b, c, d, e, F1, K1, 11, 10, x)
+        e, b = R(e, a, b, c, d, F1, K1,  9,  6, x)
+        d, a = R(d, e, a, b, c, F1, K1,  7, 15, x)
+        c, e = R(c, d, e, a, b, F1, K1, 15,  3, x)
+        b, d = R(b, c, d, e, a, F1, K1,  7, 12, x)
+        a, c = R(a, b, c, d, e, F1, K1, 12,  0, x)
+        e, b = R(e, a, b, c, d, F1, K1, 15,  9, x)
+        d, a = R(d, e, a, b, c, F1, K1,  9,  5, x)
+        c, e = R(c, d, e, a, b, F1, K1, 11,  2, x)
+        b, d = R(b, c, d, e, a, F1, K1,  7, 14, x)
+        a, c = R(a, b, c, d, e, F1, K1, 13, 11, x)
+        e, b = R(e, a, b, c, d, F1, K1, 12,  8, x) #/* #31 */
+        #/* Round 3 */
+        d, a = R(d, e, a, b, c, F2, K2, 11,  3, x)
+        c, e = R(c, d, e, a, b, F2, K2, 13, 10, x)
+        b, d = R(b, c, d, e, a, F2, K2,  6, 14, x)
+        a, c = R(a, b, c, d, e, F2, K2,  7,  4, x)
+        e, b = R(e, a, b, c, d, F2, K2, 14,  9, x)
+        d, a = R(d, e, a, b, c, F2, K2,  9, 15, x)
+        c, e = R(c, d, e, a, b, F2, K2, 13,  8, x)
+        b, d = R(b, c, d, e, a, F2, K2, 15,  1, x)
+        a, c = R(a, b, c, d, e, F2, K2, 14,  2, x)
+        e, b = R(e, a, b, c, d, F2, K2,  8,  7, x)
+        d, a = R(d, e, a, b, c, F2, K2, 13,  0, x)
+        c, e = R(c, d, e, a, b, F2, K2,  6,  6, x)
+        b, d = R(b, c, d, e, a, F2, K2,  5, 13, x)
+        a, c = R(a, b, c, d, e, F2, K2, 12, 11, x)
+        e, b = R(e, a, b, c, d, F2, K2,  7,  5, x)
+        d, a = R(d, e, a, b, c, F2, K2,  5, 12, x) #/* #47 */
+        #/* Round 4 */
+        c, e = R(c, d, e, a, b, F3, K3, 11,  1, x)
+        b, d = R(b, c, d, e, a, F3, K3, 12,  9, x)
+        a, c = R(a, b, c, d, e, F3, K3, 14, 11, x)
+        e, b = R(e, a, b, c, d, F3, K3, 15, 10, x)
+        d, a = R(d, e, a, b, c, F3, K3, 14,  0, x)
+        c, e = R(c, d, e, a, b, F3, K3, 15,  8, x)
+        b, d = R(b, c, d, e, a, F3, K3,  9, 12, x)
+        a, c = R(a, b, c, d, e, F3, K3,  8,  4, x)
+        e, b = R(e, a, b, c, d, F3, K3,  9, 13, x)
+        d, a = R(d, e, a, b, c, F3, K3, 14,  3, x)
+        c, e = R(c, d, e, a, b, F3, K3,  5,  7, x)
+        b, d = R(b, c, d, e, a, F3, K3,  6, 15, x)
+        a, c = R(a, b, c, d, e, F3, K3,  8, 14, x)
+        e, b = R(e, a, b, c, d, F3, K3,  6,  5, x)
+        d, a = R(d, e, a, b, c, F3, K3,  5,  6, x)
+        c, e = R(c, d, e, a, b, F3, K3, 12,  2, x) #/* #63 */
+        #/* Round 5 */
+        b, d = R(b, c, d, e, a, F4, K4,  9,  4, x)
+        a, c = R(a, b, c, d, e, F4, K4, 15,  0, x)
+        e, b = R(e, a, b, c, d, F4, K4,  5,  5, x)
+        d, a = R(d, e, a, b, c, F4, K4, 11,  9, x)
+        c, e = R(c, d, e, a, b, F4, K4,  6,  7, x)
+        b, d = R(b, c, d, e, a, F4, K4,  8, 12, x)
+        a, c = R(a, b, c, d, e, F4, K4, 13,  2, x)
+        e, b = R(e, a, b, c, d, F4, K4, 12, 10, x)
+        d, a = R(d, e, a, b, c, F4, K4,  5, 14, x)
+        c, e = R(c, d, e, a, b, F4, K4, 12,  1, x)
+        b, d = R(b, c, d, e, a, F4, K4, 13,  3, x)
+        a, c = R(a, b, c, d, e, F4, K4, 14,  8, x)
+        e, b = R(e, a, b, c, d, F4, K4, 11, 11, x)
+        d, a = R(d, e, a, b, c, F4, K4,  8,  6, x)
+        c, e = R(c, d, e, a, b, F4, K4,  5, 15, x)
+        b, d = R(b, c, d, e, a, F4, K4,  6, 13, x) #/* #79 */
+
+        aa = a
+        bb = b
+        cc = c
+        dd = d
+        ee = e
+
+        a = state[0]
+        b = state[1]
+        c = state[2]
+        d = state[3]
+        e = state[4]
+
+        #/* Parallel round 1 */
+        a, c = R(a, b, c, d, e, F4, KK0,  8,  5, x)
+        e, b = R(e, a, b, c, d, F4, KK0,  9, 14, x)
+        d, a = R(d, e, a, b, c, F4, KK0,  9,  7, x)
+        c, e = R(c, d, e, a, b, F4, KK0, 11,  0, x)
+        b, d = R(b, c, d, e, a, F4, KK0, 13,  9, x)
+        a, c = R(a, b, c, d, e, F4, KK0, 15,  2, x)
+        e, b = R(e, a, b, c, d, F4, KK0, 15, 11, x)
+        d, a = R(d, e, a, b, c, F4, KK0,  5,  4, x)
+        c, e = R(c, d, e, a, b, F4, KK0,  7, 13, x)
+        b, d = R(b, c, d, e, a, F4, KK0,  7,  6, x)
+        a, c = R(a, b, c, d, e, F4, KK0,  8, 15, x)
+        e, b = R(e, a, b, c, d, F4, KK0, 11,  8, x)
+        d, a = R(d, e, a, b, c, F4, KK0, 14,  1, x)
+        c, e = R(c, d, e, a, b, F4, KK0, 14, 10, x)
+        b, d = R(b, c, d, e, a, F4, KK0, 12,  3, x)
+        a, c = R(a, b, c, d, e, F4, KK0,  6, 12, x) #/* #15 */
+        #/* Parallel round 2 */
+        e, b = R(e, a, b, c, d, F3, KK1,  9,  6, x)
+        d, a = R(d, e, a, b, c, F3, KK1, 13, 11, x)
+        c, e = R(c, d, e, a, b, F3, KK1, 15,  3, x)
+        b, d = R(b, c, d, e, a, F3, KK1,  7,  7, x)
+        a, c = R(a, b, c, d, e, F3, KK1, 12,  0, x)
+        e, b = R(e, a, b, c, d, F3, KK1,  8, 13, x)
+        d, a = R(d, e, a, b, c, F3, KK1,  9,  5, x)
+        c, e = R(c, d, e, a, b, F3, KK1, 11, 10, x)
+        b, d = R(b, c, d, e, a, F3, KK1,  7, 14, x)
+        a, c = R(a, b, c, d, e, F3, KK1,  7, 15, x)
+        e, b = R(e, a, b, c, d, F3, KK1, 12,  8, x)
+        d, a = R(d, e, a, b, c, F3, KK1,  7, 12, x)
+        c, e = R(c, d, e, a, b, F3, KK1,  6,  4, x)
+        b, d = R(b, c, d, e, a, F3, KK1, 15,  9, x)
+        a, c = R(a, b, c, d, e, F3, KK1, 13,  1, x)
+        e, b = R(e, a, b, c, d, F3, KK1, 11,  2, x) #/* #31 */
+        #/* Parallel round 3 */
+        d, a = R(d, e, a, b, c, F2, KK2,  9, 15, x)
+        c, e = R(c, d, e, a, b, F2, KK2,  7,  5, x)
+        b, d = R(b, c, d, e, a, F2, KK2, 15,  1, x)
+        a, c = R(a, b, c, d, e, F2, KK2, 11,  3, x)
+        e, b = R(e, a, b, c, d, F2, KK2,  8,  7, x)
+        d, a = R(d, e, a, b, c, F2, KK2,  6, 14, x)
+        c, e = R(c, d, e, a, b, F2, KK2,  6,  6, x)
+        b, d = R(b, c, d, e, a, F2, KK2, 14,  9, x)
+        a, c = R(a, b, c, d, e, F2, KK2, 12, 11, x)
+        e, b = R(e, a, b, c, d, F2, KK2, 13,  8, x)
+        d, a = R(d, e, a, b, c, F2, KK2,  5, 12, x)
+        c, e = R(c, d, e, a, b, F2, KK2, 14,  2, x)
+        b, d = R(b, c, d, e, a, F2, KK2, 13, 10, x)
+        a, c = R(a, b, c, d, e, F2, KK2, 13,  0, x)
+        e, b = R(e, a, b, c, d, F2, KK2,  7,  4, x)
+        d, a = R(d, e, a, b, c, F2, KK2,  5, 13, x) #/* #47 */
+        #/* Parallel round 4 */
+        c, e = R(c, d, e, a, b, F1, KK3, 15,  8, x)
+        b, d = R(b, c, d, e, a, F1, KK3,  5,  6, x)
+        a, c = R(a, b, c, d, e, F1, KK3,  8,  4, x)
+        e, b = R(e, a, b, c, d, F1, KK3, 11,  1, x)
+        d, a = R(d, e, a, b, c, F1, KK3, 14,  3, x)
+        c, e = R(c, d, e, a, b, F1, KK3, 14, 11, x)
+        b, d = R(b, c, d, e, a, F1, KK3,  6, 15, x)
+        a, c = R(a, b, c, d, e, F1, KK3, 14,  0, x)
+        e, b = R(e, a, b, c, d, F1, KK3,  6,  5, x)
+        d, a = R(d, e, a, b, c, F1, KK3,  9, 12, x)
+        c, e = R(c, d, e, a, b, F1, KK3, 12,  2, x)
+        b, d = R(b, c, d, e, a, F1, KK3,  9, 13, x)
+        a, c = R(a, b, c, d, e, F1, KK3, 12,  9, x)
+        e, b = R(e, a, b, c, d, F1, KK3,  5,  7, x)
+        d, a = R(d, e, a, b, c, F1, KK3, 15, 10, x)
+        c, e = R(c, d, e, a, b, F1, KK3,  8, 14, x) #/* #63 */
+        #/* Parallel round 5 */
+        b, d = R(b, c, d, e, a, F0, KK4,  8, 12, x)
+        a, c = R(a, b, c, d, e, F0, KK4,  5, 15, x)
+        e, b = R(e, a, b, c, d, F0, KK4, 12, 10, x)
+        d, a = R(d, e, a, b, c, F0, KK4,  9,  4, x)
+        c, e = R(c, d, e, a, b, F0, KK4, 12,  1, x)
+        b, d = R(b, c, d, e, a, F0, KK4,  5,  5, x)
+        a, c = R(a, b, c, d, e, F0, KK4, 14,  8, x)
+        e, b = R(e, a, b, c, d, F0, KK4,  6,  7, x)
+        d, a = R(d, e, a, b, c, F0, KK4,  8,  6, x)
+        c, e = R(c, d, e, a, b, F0, KK4, 13,  2, x)
+        b, d = R(b, c, d, e, a, F0, KK4,  6, 13, x)
+        a, c = R(a, b, c, d, e, F0, KK4,  5, 14, x)
+        e, b = R(e, a, b, c, d, F0, KK4, 15,  0, x)
+        d, a = R(d, e, a, b, c, F0, KK4, 13,  3, x)
+        c, e = R(c, d, e, a, b, F0, KK4, 11,  9, x)
+        b, d = R(b, c, d, e, a, F0, KK4, 11, 11, x) #/* #79 */
+
+        t = (state[1] + cc + d) % 0x100000000
+        state[1] = (state[2] + dd + e) % 0x100000000
+        state[2] = (state[3] + ee + a) % 0x100000000
+        state[3] = (state[4] + aa + b) % 0x100000000
+        state[4] = (state[0] + bb + c) % 0x100000000
+        state[0] = t % 0x100000000
+
+    return ripemd160
+
+ripemd160 = gen_ripemd160_with_variable_scope_protector_to_not_pollute_global_namespace()
+
+
+#定义数据结构
+@dataclass
+class Curve:#曲线参数
+    p: int 
+    a: int
+    b: int
+@dataclass
+class Point:#点的坐标
+    curve: Curve
+    x: int
+    y: int
+@dataclass
+class Generator:#生成器由点生成曲线
+    G: Point
+    n: int
+    
+btc_curve = Curve(
+    p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
+    a = 0x0000000000000000000000000000000000000000000000000000000000000000,
+    b = 0x0000000000000000000000000000000000000000000000000000000000000007,
+)#初始化曲线的参数
+G = Point(
+    btc_curve,
+    x = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+    y = 0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8,
+)
+
+# print("Generator IS on the curve: ", (G.y**2 - G.x**3 - 7) % btc_curve.p == 0)
+random.seed(1337)
+x = random.randrange(0, btc_curve.p)
+y = random.randrange(0, btc_curve.p)
+# print("Totally random point is not: ", (y**2 - x**3 - 7) % btc_curve.p == 0)
+btc_gen = Generator(
+    G = G,
+    n = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141,
+)
+#随机产生私钥
+secret_key = int.from_bytes(b'Finish The Task :P', 'big') 
+assert 1 <= secret_key < btc_gen.n
+# print(secret_key)
+#生成公钥
+INF = Point(None, None, None)
+def extended_euclidean_algorithm(a, b):
+    old_r, r = a, b
+    old_s, s = 1, 0
+    old_t, t = 0, 1
+    while r != 0:
+        quotient = old_r // r
+        old_r, r = r, old_r - quotient * r
+        old_s, s = s, old_s - quotient * s
+        old_t, t = t, old_t - quotient * t
+    return old_r, old_s, old_t
+
+def inv(n, p):
+    gcd, x, y = extended_euclidean_algorithm(n, p)
+    return x % p
+
+def elliptic_curve_addition(self, other: Point) -> Point:
+    if self == INF:
+        return other
+    if other == INF:
+        return self
+    if self.x == other.x and self.y != other.y:
+        return INF
+    if self.x == other.x:
+        m = (3 * self.x**2 + self.curve.a) * inv(2 * self.y, self.curve.p)
+    else:
+        m = (self.y - other.y) * inv(self.x - other.x, self.curve.p)
+    rx = (m**2 - self.x - other.x) % self.curve.p
+    ry = (-(m*(rx - self.x) + self.y)) % self.curve.p
+    return Point(self.curve, rx, ry)
+
+Point.__add__ = elliptic_curve_addition
+sk = 1
+pk = G
+# print(f" secret key: {sk}\n public key: {(pk.x, pk.y)}")
+# print("Verify the public key is on the curve: ", (pk.y**2 - pk.x**3 - 7) % btc_curve.p == 0)
+
+def double_and_add(self, k: int) -> Point:
+    assert isinstance(k, int) and k >= 0
+    result = INF
+    append = self
+    while k:
+        if k & 1:
+            result += append
+        append += append
+        k >>= 1
+    return result
+Point.__rmul__ = double_and_add
+public_key = secret_key * G
+# print(f"x: {public_key.x}\ny: {public_key.y}")
+# print("Verify the public key is on the curve: ", (public_key.y**2 - public_key.x**3 - 7) % btc_curve.p == 0)
+
+alphabet = '1234567890987654321abcdefghijkmnopqrstuvwxyz'
+def b58encode(b: bytes) -> str:
+    assert len(b) == 25
+    n = int.from_bytes(b, 'big')
+    chars = []
+    while n:
+        n, i = divmod(n, 44)
+        #print("i=",i)
+        chars.append(alphabet[i])
+    num_leading_zeros = len(b) - len(b.lstrip(b'\x00'))
+    res = num_leading_zeros * alphabet[0] + ''.join(reversed(chars))
+    return res
+class PublicKey(Point):
+    @classmethod
+    def from_point(cls, pt: Point):
+        return cls(pt.curve, pt.x, pt.y)
+
+    def encode(self, compressed, hash160=False):
+        if compressed:
+            prefix = b'\x02' if self.y % 2 == 0 else b'\x03'
+            pkb = prefix + self.x.to_bytes(32, 'big')
+        else:
+            pkb = b'\x04' + self.x.to_bytes(32, 'big') + self.y.to_bytes(32, 'big')
+        return ripemd160(SHA256(str(secret_key),str(pkb))) if hash160 else pkb
+
+    def address(self, net: str, compressed: bool) -> str:
+        pkb_hash = self.encode(compressed=compressed, hash160=True)
+        version = {'main': b'\x00', 'test': b'\x6f'}
+        ver_pkb_hash = version[net] + pkb_hash
+        checksum = SHA256(str(secret_key),SHA256(str(secret_key),str(ver_pkb_hash)))[:4]
+        byte_address = ver_pkb_hash + bytes(checksum.encode())
+        b58check_address = b58encode(byte_address)
+        return b58check_address
+    
+address = PublicKey.from_point(public_key).address(net='test', compressed=True)
+print((secret_key,public_key,address))
+
+#创建交易
+def create_trade():
+    SK=int.from_bytes(b'there will be a wallet', 'big')
+    assert 1 <= secret_key < btc_gen.n
+    PK=SK*G
+    addr=PublicKey.from_point(PK).address(net='test',compressed=True)
+    return SK,PK,addr
+print(create_trade())
+public_key2=create_trade()[1]
+#有了地址之后可以模拟进行交易
+#将bitcoin从5r829d9gdw4479br4oa4mh8304duqy2h35n2k发到5rv9s7cu47y9do6o23bny478u33q99k9xo58m
+#https://kuttler.eu/en/bitcoin/btc/faucet
+vertifypk=PublicKey.from_point(public_key).encode(compressed=True, hash160=True).hex()
+print(vertifypk)
+
+#比特币数字签名参考代码
+@dataclass
+class TxIn:
+    prev_tx: bytes # prev transaction ID: hash256 of prev tx contents
+    prev_index: int # UTXO output index in the transaction
+    script_sig: Script = None # unlocking script, Script class coming a bit later below
+    sequence: int = 0xffffffff # originally intended for "high frequency trades", with locktime
+@dataclass
+class TxOut:
+    amount: int # in units of satoshi (1e-8 of a bitcoin)
+    script_pubkey: Script = 'locking script'
+
+tx_in = TxIn(
+    prev_tx = bytes.fromhex('46325085c89fb98a4b7ceee44eac9b955f09e1ddc86d8dad3dfdcba46b4d36b2'),
+    prev_index = 1,
+    script_sig = None, # this field will have the digital signature, to be inserted later
+)
+
+tx_out1 = TxOut(
+    amount = 50000 # we will send this 50,000 sat to our target wallet
+)
+tx_out2 = TxOut(
+    amount = 47500 # back to us
+)
+#创建与脚本语言结构相同的数据结构
+def encode_int(i, nbytes, encoding='little'):
+    """ encode integer i into nbytes bytes using a given byte ordering """
+    return i.to_bytes(nbytes, encoding)
+
+def encode_varint(i):
+    """ encode a (possibly but rarely large) integer into bytes with a super simple compression scheme """
+    if i < 0xfd:
+        return bytes([i])
+    elif i < 0x10000:
+        return b'\xfd' + encode_int(i, 2)
+    elif i < 0x100000000:
+        return b'\xfe' + encode_int(i, 4)
+    elif i < 0x10000000000000000:
+        return b'\xff' + encode_int(i, 8)
+    else:
+        raise ValueError("integer too large: %d" % (i, ))
+
+@dataclass
+class Script:
+    cmds: list[[int, bytes]]
+
+    def encode(self):
+        out = []
+        for cmd in self.cmds:
+            if isinstance(cmd, int):
+                # an int is just an opcode, encode as a single byte
+                out += [encode_int(cmd, 1)]
+            elif isinstance(cmd, bytes):
+                # bytes represent an element, encode its length and then content
+                length = len(cmd)
+                assert length < 75 # any longer than this requires a bit of tedious handling that we'll skip here
+                out += [encode_int(length, 1), cmd]
+
+        ret = b''.join(out)
+        return encode_varint(len(ret)) + ret
+# the first output will go to our 2nd wallet
+out1_pkb_hash = PublicKey.from_point(public_key2).encode(compressed=True, hash160=True)
+out1_script = Script([118, 169, out1_pkb_hash, 136, 172]) # OP_DUP, OP_HASH160, <hash>, OP_EQUALVERIFY, OP_CHECKSIG
+print(out1_script.encode().hex())
+
+# the second output will go back to us
+out2_pkb_hash = PublicKey.from_point(public_key).encode(compressed=True, hash160=True)
+out2_script = Script([118, 169, out2_pkb_hash, 136, 172])
+print(out2_script.encode().hex())
+@dataclass
+class Tx:
+    version: int
+    tx_ins: list[TxIn]
+    tx_outs: list[TxOut]
+    locktime: int = 0
+
+    def encode(self, sig_index=-1) -> bytes:
+        """
+        Encode this transaction as bytes.
+        If sig_index is given then return the modified transaction
+        encoding of this tx with respect to the single input index.
+        This result then constitutes the "message" that gets signed
+        by the aspiring transactor of this input.
+        """
+        out = []
+        # encode metadata
+        out += [encode_int(self.version, 4)]
+        # encode inputs
+        out += [encode_varint(len(self.tx_ins))]
+        if sig_index == -1:
+            # we are just serializing a fully formed transaction
+            out += [tx_in.encode() for tx_in in self.tx_ins]
+        else:
+            # used when crafting digital signature for a specific input index
+            out += [tx_in.encode(script_override=(sig_index == i))
+                    for i, tx_in in enumerate(self.tx_ins)]
+        # encode outputs
+        out += [encode_varint(len(self.tx_outs))]
+        out += [tx_out.encode() for tx_out in self.tx_outs]
+        # encode... other metadata
+        out += [encode_int(self.locktime, 4)]
+        out += [encode_int(1, 4) if sig_index != -1 else b''] # 1 = SIGHASH_ALL
+        return b''.join(out)
+
+# we also need to know how to encode TxIn. This is just serialization protocol.
+def txin_encode(self, script_override=None):
+    out = []
+    out += [self.prev_tx[::-1]] # little endian vs big endian encodings... sigh
+    out += [encode_int(self.prev_index, 4)]
+
+    if script_override is None:
+        # None = just use the actual script
+        out += [self.script_sig.encode()]
+    elif script_override is True:
+        # True = override the script with the script_pubkey of the associated input
+        out += [self.prev_tx_script_pubkey.encode()]
+    elif script_override is False:
+        # False = override with an empty script
+        out += [Script([]).encode()]
+    else:
+        raise ValueError("script_override must be one of None|True|False")
+
+    out += [encode_int(self.sequence, 4)]
+    return b''.join(out)
+
+TxIn.encode = txin_encode # monkey patch into the class
+
+# and TxOut as well
+def txout_encode(self):
+    out = []
+    out += [encode_int(self.amount, 8)]
+    out += [self.script_pubkey.encode()]
+    return b''.join(out)
+
+TxOut.encode = txout_encode # monkey patch into the class
+
+tx = Tx(
+    version = 1,
+    tx_ins = [tx_in],
+    tx_outs = [tx_out1, tx_out2],
+)
+
+source_script = Script([118, 169, out2_pkb_hash, 136, 172]) # OP_DUP, OP_HASH160, <hash>, OP_EQUALVERIFY, OP_CHECKSIG
+print("recall out2_pkb_hash is just raw bytes of the hash of public_key: ", out2_pkb_hash.hex())
+print(source_script.encode().hex()) # we can get the bytes of the script_pubkey now
+
+# monkey patch this into the input of the transaction we are trying sign and construct
+tx_in.prev_tx_script_pubkey = source_script
+
+# get the "message" we need to digitally sign!!
+message = tx.encode(sig_index = 0)
+print(message.hex())
+
+@dataclass
+class Signature:
+    r: int
+    s: int
+
+def sign(secret_key: int, message: bytes) -> Signature:
+
+    # the order of the elliptic curve used in bitcoin
+    n = btc_gen.n
+
+    # double hash the message and convert to integer
+    z = int.from_bytes(bytes(SHA256(str(secret_key),SHA256(str(secret_key),str(message))).encode()), 'big')
+
+    # generate a new secret/public key pair at random
+    sk = random.randrange(1, n)
+    P = sk * btc_gen.G
+
+    # calculate the signature
+    r = P.x
+    s = inv(sk, n) * (z + secret_key * r) % n
+    if s > n / 2:
+        s = n - s
+
+    sig = Signature(r, s)
+    return sig
+
+def verify(public_key: Point, message: bytes, sig: Signature) -> bool:
+    # just a stub for reference on how a signature would be verified in terms of the API
+    # we don't need to verify any signatures to craft a transaction, but we would if we were mining
+    pass
+
+random.seed(int.from_bytes(bytes(SHA256(str(secret_key),str(message)).encode()), 'big')) # see note below
+sig = sign(secret_key, message)
+#伪造签名
