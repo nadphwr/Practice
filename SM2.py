@@ -68,16 +68,14 @@ def rabin_miller(n,times):
     else:
         return False
  
- 
 # 将字节转换为int
 def to_int(byte):
     return int.from_bytes(byte, byteorder='big')
  
- 
-# 转换为bytes，第二参数为字节数（可不填）
+# 转换为bytes
 def to_byte(x, size=None):
     if isinstance(x, int):
-        if size is None:  # 计算合适的字节数
+        if size is None: 
             size = 0
             tmp = x >> 64
             while tmp:
@@ -87,32 +85,27 @@ def to_byte(x, size=None):
             while tmp:
                 size += 1
                 tmp >>= 8
-        elif x >> (size << 3):  # 指定的字节数不够则截取低位
+        elif x >> (size << 3): 
             x &= (1 << (size << 3)) - 1
         return x.to_bytes(size, byteorder='big')
     elif isinstance(x, str):
         x = x.encode()
-        if size != None and len(x) > size:  # 超过指定长度
-            x = x[:size]  # 截取左侧字符
+        if size != None and len(x) > size: 
         return x
     elif isinstance(x, bytes):
-        if size != None and len(x) > size:  # 超过指定长度
-            x = x[:size]  # 截取左侧字节
+        if size != None and len(x) > size: 
+            x = x[:size] 
         return x
     elif isinstance(x, tuple) and len(x) == 2 and type(x[0]) == type(x[1]) == int:
-        # 针对坐标形式(x, y)
         return to_byte(x[0], size) + to_byte(x[1], size)
     return bytes(x)
- 
- 
+
 # 将列表元素转换为bytes并连接
 def join_bytes(data_list):
     return b''.join([to_byte(i) for i in data_list])
- 
- 
+
 def gcd(a, b):
     return a if b == 0 else gcd(b, a % b)
- 
  
 # 求乘法逆元过程中的辅助递归函数
 def get_(a, b):
@@ -122,31 +115,22 @@ def get_(a, b):
     x, y = y1, x1 - a // b * y1
     return x, y
  
- 
 # 求乘法逆元
 def get_inverse(a, p): 
     if gcd(a, p) == 1:
         x, y = get_(a, p)
         return x % p
     return 1
-
- 
 def get_cpu_time():
     return time.perf_counter()
  
-    
-# 密钥派生函数（从一个共享的秘密比特串中派生出密钥数据）
-# SM2第3部分 5.4.3
-# Z为bytes类型
-# klen表示要获得的密钥数据的比特长度（8的倍数），int类型
-# 输出为bytes类型
+# 密钥派生函数
 def KDF(Z, klen):
     ksize = klen >> 3
     K = bytearray()
     for ct in range(1, math.ceil(ksize / HASH_SIZE) + 1):
         K+=bytearray(sm3(str(to_int(Z + to_byte(ct, 4)))).encode())
     return K[:ksize]
- 
  
 #比特位数
 def get_bit_num(x):
@@ -512,7 +496,7 @@ PARA_SIZE = 32  # 参数长度（字节）
 HASH_SIZE = 32  # sm3输出256位（32字节）
 KEY_LEN = 128  # 默认密钥位数
  
-# # SM2示例中的椭圆曲线系统参数
+# SM2示例中的椭圆曲线系统参数
 def tmp_para():
     p = 0x8542D69E4C044F18E8B92435BF6FF7DE457283915C45517D722EDB8B08F1DFC3
     a = 0x787968B4FA32C3FD2417842E73BBFEFF2F3C848B6831D7E0EC65228B3937E498
@@ -524,15 +508,13 @@ def tmp_para():
     h = 1
     return p, a, b, n, G, h
 
-# SM2类继承ECC
+# SM2类继承ECC(参考代码）
 class SM2(ECC):
-    # 默认使用SM2推荐曲线参数
     def __init__(self, p=SM2_p, a=SM2_a, b=SM2_b, n=SM2_n, G=(SM2_Gx, SM2_Gy), h=None,
                  ID=None, sk=None, pk=None, genkeypair=True):  # genkeypair表示是否自动生成公私钥对
         if not h:  # 余因子h默认为1
             h = 1
         ECC.__init__(self, p, a, b, n, G, h)
- 
         self.keysize = len(to_byte(n))  # 密钥长度（字节）
         if type(ID) in (int, str):  # 身份ID（数字或字符串）
             self.ID = ID
@@ -544,13 +526,8 @@ class SM2(ECC):
             self.confirm_keypair()  # 验证该公私钥对，不合格则生成
         elif genkeypair:  # 自动生成合格的公私钥对
             self.confirm_keypair()
- 
-        # 预先计算用到的常数
         if hasattr(self, 'sk'):  # 签名时
             self.d_1 = get_inverse(1 + self.sk, self.n)
- 
-    # 椭圆曲线系统参数验证
-    # SM2第1部分 5.2.2
     def para_valid(self):
         # a) 验证q = p是奇素数
         if not is_prime(self.p):
@@ -605,159 +582,11 @@ class SM2(ECC):
         Z = sm3(str(to_int(join_bytes([ENTL, ID, self.a, self.b, *self.G, *P]))))
         if save:  # 保存自身Z值
             self.Z = Z
-        return Z
- 
-    # 数字签名
-    # SM2第2部分 6.1
-    # 输入：待签名的消息M、随机数k（不填则自动生成）、输出类型（默认bytes）、对M是否hash（默认是）
-    # 输出：r, s（int类型）或拼接后的bytes
-    def sign(self, M, k=None, outbytes=True, dohash=True):
-        if dohash:
-            M_ = join_bytes([self.get_Z(), M])
-            e = to_int(bytearray(sm3(str(to_int(M_))).encode()))
-        else:
-            e = to_int(to_byte(M))
-        while True:
-            if not k:
-                k = random.randint(1, self.n - 1)
-            # x1, y1 = self.multiply(k, self.G)
-            x1, y1 = self.Jacb_multiply(k, self.G)
-            r = (e + x1) % self.n
-            if r == 0 or r + k == self.n:
-                k = 0
-                continue
-            # s = get_inverse(1 + self.sk, self.n) * (k - r * self.sk) % self.n
-            s = self.d_1 * (k - r * self.sk) % self.n
-            if s == 0:
-                k = 0
-            else:
-                break
-        if outbytes:
-            return to_byte((r, s), self.keysize)
-        else:
-            return r, s
- 
-    # 数字签名验证
-    # SM2第2部分 7.1
-    # 输入：收到的消息M′及其数字签名(r′, s′)、签名者的身份标识IDA及公钥PA、对M是否hash（默认是）
-    # 输出：True or False
-    def verify(self, M, sig, IDA, PA, dohash=True):
-        if isinstance(sig, bytes):
-            r = to_int(sig[:self.keysize])
-            s = to_int(sig[self.keysize:])
-        else:
-            r, s = sig
-        if not 1 <= r <= self.n - 1:
-            return False
-        if not 1 <= s <= self.n - 1:
-            return False
-        if dohash:
-            M_ = join_bytes([self.get_Z(IDA, PA), M])
-            e = to_int(bytearray(sm3(str(to_int(M_))).encode()))
-        else:
-            e = to_int(to_byte(M))
-        t = (r + s) % self.n
-        if t == 0:
-            return False
-        sG = self.Jacb_multiply(s, self.G, False)
-        tPA = self.Jacb_multiply(t, PA, False)
-        x1, y1 = self.Jacb_to_affine(self.Jacb_add(sG, tPA))
-        R = (e + x1) % self.n
-        if R == r:
-            return True
-        else:  # 避免Jacobian坐标下的等价点导致判断失败
-            x1, y1 = self.add(self.Jacb_to_affine(sG), self.Jacb_to_affine(tPA))
-            R = (e + x1) % self.n
-            return R == r
- 
-    # A 发起协商
-    # SM2第3部分 6.1 A1-A3
-    # 返回rA、RA
-    def agreement_initiate(self):
-        return self.gen_keypair()
- 
-    # B 响应协商（option=True时计算选项部分）
-    # SM2第3部分 6.1 B1-B9
-    def agreement_response(self, RA, PA, IDA, option=False, rB=None, RB=None, klen=None):
-        # 参数准备
-        if not self.on_curve(RA):
-            return False, 'RA不在椭圆曲线上'
-        x1, y1 = RA
-        w = math.ceil(math.ceil(math.log(self.n, 2)) / 2) - 1
-        if not hasattr(self, 'sk'):
-            self.confirm_keypair()
-        h = 1  # SM2推荐曲线的余因子h=1
-        ZA = self.get_Z(IDA, PA)
-        ZB = self.get_Z()
-        # B1-B7
-        if not rB:
-            rB, RB = self.gen_keypair()
-        x2, y2 = RB
-        x_2 = (1 << w) + (x2 & (1 << w) - 1)
-        tB = (self.sk + x_2 * rB) % self.n
-        x_1 = (1 << w) + (x1 & (1 << w) - 1)
-        # V = self.multiply(h * tB, self.add(PA, self.multiply(x_1, RA)))
-        V = self.Jacb_multiply(h * tB, self.Jacb_add(self.Jacb_multiply(x_1, RA, False), PA))
-        if self.is_zero(V):
-            return False, 'V是无穷远点'
-        xV, yV = V
-        if not klen:
-            klen = KEY_LEN
-        KB = KDF(join_bytes([xV, yV, ZA, ZB]), klen)
-        if not option:
-            return True, (RB, KB)
-        # B8、B10（可选部分）
-        tmp = join_bytes([yV, sm3(str(to_int(join_bytes([xV, ZA, ZB, x1, y1, x2, y2]))))])
-        SB = sm3(str(to_int(join_bytes([2, tmp]))))
-        S2 = sm3(str(to_int(join_bytes([3, tmp]))))
-        return True, (RB, KB, SB, S2)
- 
-    # A 协商确认
-    # SM2第3部分 6.1 A4-A10
-    def agreement_confirm(self, rA, RA, RB, PB, IDB, SB=None, option=False, klen=None):
-        # 参数准备
-        if not self.on_curve(RB):
-            return False, 'RB不在椭圆曲线上'
-        x1, y1, x2, y2 = *RA, *RB
-        w = math.ceil(math.ceil(math.log(self.n, 2)) / 2) - 1
-        if not hasattr(self, 'sk'):
-            self.confirm_keypair()
-        h = 1  # SM2推荐曲线的余因子h=1
-        ZA = self.get_Z()
-        ZB = self.get_Z(IDB, PB)
-        # A4-A8
-        x_1 = (1 << w) + (x1 & (1 << w) - 1)
-        tA = (self.sk + x_1 * rA) % self.n
-        x_2 = (1 << w) + (x2 & (1 << w) - 1)
-        # U = self.multiply(h * tA, self.add(PB, self.multiply(x_2, RB)))
-        U = self.Jacb_multiply(h * tA, self.Jacb_add(self.Jacb_multiply(x_2, RB, False), PB))
-        if self.is_zero(U):
-            return False, 'U是无穷远点'
-        xU, yU = U
-        if not klen:
-            klen = KEY_LEN
-        KA = KDF(join_bytes([xU, yU, ZA, ZB]), klen)
-        if not option or not SB:
-            return True, KA
-        # A9-A10（可选部分）
-        tmp = join_bytes([yU, sm3(str(to_int(join_bytes([xU, ZA, ZB, x1, y1, x2, y2]))))])
-        S1 = sm3(str(to_int(join_bytes([2, tmp]))))
-        if S1 != SB:
-            return False, 'S1 != SB'
-        SA = sm3(str(to_int(join_bytes([3, tmp]))))
-        return True, (KA, SA)
- 
-    # B 协商确认（可选部分）
-    # SM2第3部分 6.1 B10
-    def agreement_confirm2(self, S2, SA):
-        if S2 != SA:
-            return False, 'S2 != SA'
-        return True, ''
- 
-    # 加密
-    # SM2第4部分 6.1
-    # 输入：待加密的消息M（bytes或str类型）、对方的公钥PB、随机数k（不填则自动生成）
-    # 输出(True, bytes类型密文)或(False, 错误信息)
+
+          
+          
+          
+          
     def encrypt(self, M, PB, k=None):
         if self.is_zero(self.multiply(self.h, PB)):  # S
             return False, 'S是无穷远点'
@@ -769,7 +598,7 @@ class SM2(ECC):
             # x2, y2 = self.multiply(k, PB)
             x2, y2 = self.Jacb_multiply(k, PB)
             t = to_int(KDF(join_bytes([x2, y2]), klen))
-            if t == 0:  # 若t为全0比特串则继续循环
+            if t == 0: 
                 k = 0
             else:
                 break
@@ -778,37 +607,28 @@ class SM2(ECC):
         C2 = to_byte(to_int(M) ^ t, klen >> 3)
         C3 = sm3(str(to_int(join_bytes([x2, M, y2]))))
         return True, join_bytes([C1, C2, C3])
- 
-    # 解密
-    # SM2第4部分 7.1
-    # 输入：密文C（bytes类型）
-    # 输出(True, bytes类型明文)或(False, 错误信息)
+
     def decrypt(self, C):
         x1 = to_int(C[:self.keysize])
         y1 = to_int(C[self.keysize:self.keysize << 1])
         C1 = (x1, y1)
         if not self.on_curve(C1):
-            return False
+            return False,'failed'
         if self.is_zero(self.multiply(self.h, C1)):  # S
-            return False
+            return False,'failed'
         # x2, y2 = self.multiply(self.sk, C1)
         x2, y2 = self.Jacb_multiply(self.sk, C1)
         klen = len(C) - (self.keysize << 1) - HASH_SIZE << 3
         t = to_int(KDF(join_bytes([x2, y2]), klen))
         if t == 0:
-            return False
+            return False,'failed'
         C2 = C[self.keysize << 1:-HASH_SIZE]
         M = to_byte(to_int(C2) ^ t, klen >> 3)
         u = sm3(str(to_int(join_bytes([x2, M, y2]))))
         C3 = C[-HASH_SIZE:]
         if u != C3:
-            return False
+            return False,'failed'
         return True, M
- 
- 
-
-# SM2加解密测试
-# SM2第4部分 A.1 A.2
 def test_encryption():
     M = 'encryption standard'
     dB = 0x1649AB77A00637BD5E2EFE283FBF353534AA7F7CB89463F208DDBC2920BB0DA0
@@ -816,21 +636,13 @@ def test_encryption():
     yB = 0x75DDBA78F15FEECB4C7895E2C1CDF5FE01DEBB2CDBADF45399CCF77BBA076A42
     PB = (xB, yB)
     k = 0x4C62EEFD6ECFC2B95B92FD6C3D9575148AFA17425546D49018E5388D49DD7B4F
- 
-    # A、B双方初始化
     sm2_A = SM2(*tmp_para())
     sm2_B = SM2(*tmp_para(), '', dB, PB)
- 
     time_1 = get_cpu_time()
-    # A用B的公钥对消息M进行加密
     res, C = sm2_A.encrypt(M, PB, k)
     if not res:
         print('错误：', C)
         return
- 
-    # A将密文C发送给B
- 
-    # B用自己的私钥对密文C进行解密
     res, M2 = sm2_B.decrypt(C)
     if not res:
         print('错误：', M2)
@@ -838,8 +650,6 @@ def test_encryption():
     time_2 = get_cpu_time()
     print('耗时%.2f ms' % ((time_2 - time_1) * 1000))
     print('结果：%s，解密得：%s(%s)' % (res, M2.hex(), M2.decode()))
-    # 加解密成功，解密后的16进制值(656e6372797074696f6e207374616e64617264)与SM2第4部分 A.2中的结果一致
- 
  
 if __name__ == "__main__":
     test_encryption()
