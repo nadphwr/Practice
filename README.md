@@ -1,5 +1,6 @@
 # Practice
 Innovation and Entrepreneurship Practice<br>
+成员：陈义薄云（所有项目完成人）<br>
 所实现的项目<br>
 1.MD结构选择SM3实现基本生成杂凑值功能<br>
 2.实现SM3的生日攻击<br>
@@ -8,6 +9,11 @@ Innovation and Entrepreneurship Practice<br>
 5.SM2数字签名<br>
 6.用python实现比特币并模拟进行交易<br>
 7.实现构造默克尔树<br>
+未完成的项目<br>
+1.尽最大努力优化SM3实现(软件)
+3. verify the above pitfalls with proof-of-concept code
+4.Implement a PGP scheme with SM2
+5.PoC impl of the scheme, or do implement analysis by Google
 项目介绍<br>
 MD结构选择SM3实现基本生成杂凑值功能<br>
 代码运行效果如下图示：
