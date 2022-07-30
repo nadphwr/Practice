@@ -34,7 +34,8 @@ please input the plaintext:12b3456def87eab98721f<br>
 SM3的生日攻击<br>
 生日悖论，指如果一个房间里有23个或23个以上的人，那么至少有两个人的生日相同的概率要大于50%。这就意味着在一个典型的标准小学班级(30人)中，存在两人生日相同的可能性更高。对于60或者更多的人，这种概率要大于99%。即有大概率可以在一定的消息空间内找到碰撞。通过建立消息库，随机选取一个消息生成其杂凑值，再遍历消息库看是否产生碰撞。通过循环生成消息空间占用大量时间，之后依旧通过rho方法判断环找到摘要相同的碰撞，短时间内无运行结果。<br>
 MD5的长度扩展攻击（虚拟机实现）<br>
-首先是MD5的结构。MD5把每512位当作一组进行加密计算，首先有一个初始序列的值（该值是固定的），这个初始序列与信息的第一组512位进行运算，得到一个结果，该结果作为下一组512位的初始序列，再进行同样的运算，依此类推。需要注意的是，最后一个分组的后64位用来显示原消息的总长，是预留的，也就是说，最后一个分组只能有448。（https://blog.csdn.net/destiny1507/article/details/100543233）因此要对消息进行填充。填充规则与sm3算法相同。因此若已知消息和消息摘要以及消息的长度，我们可以通过手动填充构建新的消息，计算其MD5值。同样可以成功。
+首先是MD5的结构。MD5把每512位当作一组进行加密计算，首先有一个初始序列的值（该值是固定的），这个初始序列与信息的第一组512位进行运算，得到一个结果，该结果作为下一组512位的初始序列，再进行同样的运算，依此类推。需要注意的是，最后一个分组的后64位用来显示原消息的总长，是预留的，也就是说，最后一个分组只能有448。（https://blog.csdn.net/destiny1507/article/details/100543233）
+因此要对消息进行填充。填充规则与sm3算法相同。因此若已知消息和消息摘要以及消息的长度，我们可以通过手动填充构建新的消息，计算其MD5值。同样可以成功。
 ![image](https://github.com/nadphwr/Practice/blob/main/md5.png)<br>
 SM2的加解密功能（有待完善）<br>
 ![image](https://github.com/nadphwr/Practice/blob/main/sm2.png)<br>
@@ -53,7 +54,7 @@ SM2两方签名<br>
 ![image](https://github.com/nadphwr/Practice/blob/main/模拟交易1.png)<br>
 ![image](https://github.com/nadphwr/Practice/blob/main/模拟交易2.png)<br>
 默克尔树<br>
-先建立几个高层节点，初始化为空，之后生成相应个数的底层节点，计算其哈希值，之后由下往上计算其父节点的哈希值，构造默克尔树。运行时无需额外输入，叶子节点均随机产生。<br>
+一个节点均由其子节点哈希而来。因此先建立几个高层节点，初始化为空，之后生成相应个数的底层节点，计算其哈希值，之后由下往上计算其父节点的哈希值，构造默克尔树。运行时无需额外输入，叶子节点均随机产生。<br>
 ![image](https://github.com/nadphwr/Practice/blob/main/merkeltree1.png)<br>
 ![image](https://github.com/nadphwr/Practice/blob/main/merkeltree2.png)<br>
 ![image](https://github.com/nadphwr/Practice/blob/main/merkeltree3.png)<br>
