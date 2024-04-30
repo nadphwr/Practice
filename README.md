@@ -22,7 +22,7 @@ Innovation and Entrepreneurship Practice<br>
 9.Find a key with hash value “sdu_cst_20220610” under a message composed of your name followed by your student ID. For example, “San Zhan 202000460001”.
 10.Find a 64-byte message under some  fulfilling that their hash value is symmetrical
 11.Write a circuit to prove that your CET6 grade is larger than 425. a. Your grade info is like (cn_id, grade, year, sig_by_moe). These grades are published as commitments onchain by MoE. b. When you got an interview from an employer, you can prove to them that you have passed the exam without letting them know the exact grade.
-12.The commitment scheme used by MoE is SHA256-based. a. commit = SHA256(cn_id, grade, year, sig_by_moe, r)
+12.The commitment scheme used by MoE is SHA256-based. a. commit = SHA256(cn_id, grade, year, sig_by_moe, r)<br>
 项目介绍<br>
 MD结构选择SM3实现基本生成杂凑值功能<br>
 SM3算法对于长度小于264位的消息，产生一个256位的消息摘要。算法以512位分组来处理输入的信息，每一分组又被划分为132个32位子分组，经过一系列的处理后，算法的输出由八个32位分组组成，将这些32位分组级联后产生一个256位的散列值。主要分为以下几个步骤：1.消息填充，对不满448bit倍数长度的消息，先填充1bit1，剩余比特填充0。之后再以大端方式填充64bit的消息长度。2.对消息进行分组扩展。3.对得到的消息字进行迭代运算，生成杂凑值。
